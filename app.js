@@ -5,11 +5,23 @@ const Joi = require('joi');
 const jwt = require('jsonwebtoken');
 const app = express()
 const cors = require('cors');
+const {Server} =require("socket.io");
+const http =require('http');
+
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 
 const { required } = require("express/lib/response");
 
+const server =http.createServer(app);
+const io = new Server(server,{
+    cors:{
+        origin: 'http://localhost:8080',
+        methods:['GET','POST'],
+        credentials:true
+    },
+    allowEIO3:true
+});
 const saltRounds = 12;
 
 app.use(express.urlencoded({ extended: true }));
@@ -160,17 +172,86 @@ function authToken(req, res, next) {
 };
 
 //prikaz svih usera
-app.get('/listUsers', authToken, (req, res) => {
+app.get('/listUsers', (req, res) => {
 
     pool.getConnection((err, connection) => {
         if (err) throw err
 
 
-        connection.query('SELECT * FROM app_user', (err, rows) => {
+        connection.query('SELECT app_user.id, app_user.username,app_user.email,app_user.broj_telefona,app_user.steceno_obrazovanje,radna_mesta.naziv FROM app_user LEFT JOIN radna_mesta ON app_user.id_radno_mesto=radna_mesta.id ORDER BY app_user.username', 
+        (err, rows) => {
             connection.release() // return the connection to pool
 
             if (!err) {
+                console.log(rows);
+                res.json(rows);
+            } else {
+                console.log(err)
+            }
 
+
+        })
+    })
+})
+app.get('/posts',(req, res) => {
+
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+
+        connection.query('SELECT *  FROM posts ', 
+        (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+                console.log(rows);
+                res.json(rows);
+            } else {
+                console.log(err)
+            }
+
+
+        })
+    })
+})
+app.post('/addPost' ,(req, res) => {
+
+    Joi.validate(req.body, (error, result) => {
+
+        if (error) {
+            res.send(error);
+        } else {
+            pool.getConnection((err, connection) => {
+                if (err) throw err
+
+                const params = req.body
+                connection.query('INSERT INTO posts SET ?', params, (err, rows) => {
+                    connection.release() // return the connection to pool
+                    if (!err) {
+                        res.send(`Ne moze da se doda posts`)
+                    } else {
+                        console.log(err)
+                    }
+
+
+                })
+            })
+        }
+    })
+
+});
+app.get('/list/:id', (req, res) => {
+
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+
+        connection.query('SELECT app_user.username,app_user.email,app_user.broj_telefona,app_user.steceno_obrazovanje,radna_mesta.naziv FROM app_user LEFT JOIN radna_mesta ON app_user.id_radno_mesto=radna_mesta.id WHERE radna_mesta.id = ? ', 
+        [req.params.id], (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+                console.log(rows);
                 res.json(rows);
             } else {
                 console.log(err)
@@ -181,6 +262,48 @@ app.get('/listUsers', authToken, (req, res) => {
     })
 })
 
+app.get('/getUserIDs', (req, res) => {
+
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+
+        connection.query('SELECT id FROM app_user', (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+
+                res.json(rows);
+                
+            } else {
+                console.log(err)
+            }
+
+
+        })
+    })
+})
+
+app.get('/getUser/:id', (req, res) => {
+
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+
+        connection.query('SELECT  FROM app_user WHERE id = ?', [req.params.id], (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+                console.log(rows);
+                res.json(rows);
+            } else {
+                console.log(err)
+            }
+
+
+        })
+    })
+})
 
 //dodavanje usera
 app.post('/addUser', authAdmin, (req, res) => {
@@ -270,7 +393,7 @@ app.put('/updateUser/:id',authAdmin, (req, res) => {
 })
 
 //prikaz dostupnih kurseva
-app.get('/listKursevi', authToken, (req, res) => {
+app.get('/listKursevi', (req, res) => {
     pool.getConnection((err, connection) => {
         if (err) throw err
 
@@ -289,6 +412,27 @@ app.get('/listKursevi', authToken, (req, res) => {
         })
     })
 })
+
+app.get('/detKursIDs ', (req, res) => {
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+        connection.query('SELECT * FROM dostuni_kursevi', (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+                
+                res.json(rows.id_kursa);
+            } else {
+                console.log(err)
+            }
+
+            // if(err) throw err
+            
+        })
+    })
+})
+
 
 //dodavanje kursa
 app.post('/addKurs', authModerator ,(req, res) => {
@@ -371,11 +515,30 @@ app.put('/updateKurs/:id', authModerator ,(req, res) => {
     });
 })
 
-app.get('/listRadnaMesta', authToken, (req, res) => {
+app.get('/listRadnaMesta', (req, res) => {
     pool.getConnection((err, connection) => {
         if (err) throw err
 
         connection.query('SELECT * FROM radna_mesta', (err, rows) => {
+            connection.release() // return the connection to pool
+
+            if (!err) {
+             
+                res.json(rows);
+            } else {
+                console.log(err)
+            }
+
+            // if(err) throw err
+            console.log('The data from app_user table are: \n', rows)
+        })
+    })
+})
+app.get('/RM/:id', (req, res) => {
+    pool.getConnection((err, connection) => {
+        if (err) throw err
+
+        connection.query('SELECT * FROM radna_mesta WHERE id=?', [req.params.id],(err, rows) => {
             connection.release() // return the connection to pool
 
             if (!err) {
